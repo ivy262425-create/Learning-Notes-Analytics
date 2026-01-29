@@ -1,0 +1,317 @@
+# 这是我的第一个group project，负责的是前期的数据处理部分
+# 通过这次实践，我学习到了前期处理的一个basic mindset
+# 做项目的过程也在上data mining课，有种相辅相成的效果，实践的东西正好在课堂上也讲到了~
+# Data Preprocessing: Data Cleaning, Aggregation, Sampling, Dimensionality Reduction, Feature subset 
+# selection, Discretization and Binarization, Attribute Transformation. They provide 
+# some options for us to get better results. :）
+
+# SECTION 0-  ABOUT THE DATASET
+
+# Dataset taken from - https://www.kaggle.com/datasets/zahidmughal2343/global-cancer-patients-2015-2024/data
+
+# Dataset Description: This dataset contains global cancer patient data reported from 2015 to 2024, 
+# designed to simulate the key factors influencing cancer diagnosis, treatment, and survival. 
+# It includes a variety of features that are commonly studied in the medical field, such as 
+# age, gender, cancer type, environmental factors, and lifestyle behaviors. 
+
+
+# Key Features:
+
+
+#Age: Patient's age (20-90 years)
+
+#Gender: Male, Female, or Other
+
+#Country/Region: Country or region of the patient
+
+#Cancer Type: Various types of cancer (e.g., Breast, Lung, Colon)
+
+#Cancer Stage: Stage 0 to Stage IV
+
+#Risk Factors: Includes genetic risk, air pollution, alcohol use, smoking, obesity, etc.
+
+#Treatment Cost: Estimated cost of cancer treatment (in USD)
+
+#Survival Years: Years survived since diagnosis
+
+#Severity Score: A composite score representing cancer severity
+
+
+# As we intend to convert certain numerical variables into categorical variables
+# We need to know how to discretize them
+
+
+# Link: https://www.griswoldcare.com/blog/what-age-is-considered-elderly/
+# Generally, a person with an age of 65 and above is considered to be an elderly, according to the US. 
+# It implies one has reached retirement age,  is elligible for pension and medicare insurance in the US.
+
+#Likewise, from this link: https://www.oecd.org/en/data/indicators/elderly-population.html
+#By OECD standard/definition- Elderly population is the share of the population aged 65 years and over.
+#Therefore, we group those persons whose age>=65 as Old and those with age<65 as NotOld
+
+
+# SECTION 1: 
+#INSTALLING PACKAGES 
+
+requiredPackages <- c("dplyr", "corrplot", "ggplot2", "rsample", "patchwork", "caret")
+if (length(setdiff(requiredPackages, rownames(installed.packages()))) > 0) {
+  install.packages(setdiff(requiredPackages, rownames(installed.packages())))  
+}
+#LOADING LIBRARIES
+library(dplyr)
+library(corrplot)
+library(ggplot2)
+library(caret)
+library(rsample)
+library(patchwork)
+library(forcats)
+
+####################
+#LOAD IN THE DATASET
+####################
+#downloaded from https://www.kaggle.com/datasets/zahidmughal2343/global-cancer-patients-2015-2024/data
+cancer <- read.csv("global_cancer_patients_2015_2024.csv")
+head(cancer)
+
+# Stats for each feature
+summary(cancer)
+
+# Structure of each feature
+str(cancer)
+# total 15 variables, 50000 rows
+# 5 chr , 2 int, 8 num colum
+
+# Check for missing data, duplicated records
+sum(is.na(cancer))    # 0: no missing values
+sum(duplicated(cancer))    # 0: no duplicate records
+
+######################
+# Feature Engineering
+######################
+# Converting some features from numerical to discrete data type
+
+# 1. Age - Old (>=65), NotOld(<65)
+#2. Genetic_Risk - High (>=5.0), Low(<5.0)
+#3. Air_Pollution - High(>=5.0), Low(<5.0)
+#4. Alcohol_Use - High(>=5.0) , Low(<5.0)
+#5. Smoking - Regular(>=5.0), NotRegular(<5.0)
+#6. Obesity_Level - Obese(>=5.0), Normal(<5.0)
+#7. Treatment_Cost_USD - Low, Medium, High
+#8.
+###  To impute new column called “Event”
+#### if Target_Severity_Score > median(Target_Severity_Score)  =  1 
+#### if Target_Severity_Score <= median(Target_Severity_Score)  = 0 
+#9. Target_Severity_score --> to rename to Severity_Score - Low, Medium, High
+
+
+#######################
+# FEATURE ENGINEERING
+#######################
+
+#Creating our target variable - Event - decided using the median value of Target_Severity_Score
+#Categorising and ordering continuous variables - Treatment_Cost, Target_Severity_Score- into {Low, Medium, High}
+#Also categorising the various risk factors (see next comment block below)
+
+median_score <- median(cancer$Target_Severity_Score, na.rm = TRUE)
+Event <- factor(ifelse(cancer$Target_Severity_Score > median_score, 1, 0))
+
+Treatment_Cost <- ifelse(cancer$Treatment_Cost_USD >= 0.666*range(cancer$Treatment_Cost_USD)[2], "High",
+                         ifelse(cancer$Treatment_Cost_USD >= 0.333*range(cancer$Treatment_Cost_USD)[2], "Medium",
+                                "Low"))
+
+
+Severity_Score <- ifelse(cancer$Target_Severity_Score >= 0.666*range(cancer$Target_Severity_Score)[2], "High",
+                         ifelse(cancer$Target_Severity_Score >= 0.333*range(cancer$Target_Severity_Score)[2], "Medium",
+                                "Low"))
+
+#Order Treatment_Cost and Severity_Score as ordinal (Low, Medium, High) - ordered factor data type
+Treatment_Cost <- factor(Treatment_Cost,
+                                  levels = c("Low", "Medium", "High"), ordered = TRUE)
+
+Severity_Score <- factor(Severity_Score,
+                         levels = c("Low", "Medium", "High"), ordered = TRUE)
+
+
+#Checking class of the ordered factors
+#class(Treatment_Cost)  # "ordered" "factor" 
+#class(Severity_Score)  # "ordered" "factor" 
+
+#Categorise the risk factors- convert them from quantitative to qualititative
+# For simplicity of analysis, we assume just 2 values per category - eg. {High, Low}
+# Mostly cutting at the mid point value (i.e. 5) if they range from 0 to 10
+# Otherwise, we support our decision based on research- see comments for "Age" at beginning of script
+
+Age <- ifelse(cancer$Age>=65, "Old", "NotOld")
+Genetic_Risk <- ifelse(cancer$Genetic_Risk>=5.0, "High", "Low")
+Air_Pollution <- ifelse(cancer$Air_Pollution>=5.0, "High", "Low")
+Alcohol_Use <- ifelse(cancer$Air_Pollution>=5.0, "High", "Low")
+Smoking <- ifelse(cancer$Smoking>=5.0, "Regular", "NotRegular")
+Obesity_Level <- ifelse(cancer$Obesity_Level>=5.0 , "Obese", "NotObese")
+
+
+#After categorizing, we make a new dataframe called cancer_df
+#Append columns from original cancer dataframe that we need/retained
+#Append some of the columns that we have converted(discretized) 
+
+cancer_df<- data.frame(
+  cancer$Year,
+  Age,
+  cancer$Gender,
+  Genetic_Risk,
+  Air_Pollution,
+  Alcohol_Use,
+  Smoking,
+  Obesity_Level,
+  cancer$Cancer_Type,
+  cancer$Cancer_Stage,
+  Treatment_Cost,
+  Severity_Score,
+  cancer$Survival_Years,
+  Event
+  
+)
+str(cancer_df) # 50000 rows and 14 columns
+
+# Wrangling the cancer dataframe :
+#Drop two columns as they are redundant to our analysis
+cols_to_drop <- c("Patient_ID", "Country_Region")
+#name of new dataframe- cancer1
+cancer1 <- cancer[, !(names(cancer) %in% cols_to_drop)]
+
+#Add in this new column "Event", this will be our target variable
+#class(Event) #factor
+Event_df<- as.data.frame(Event)  # 50000 rows and 1 column
+cancer1['Event'] <- Event
+head(cancer1)
+
+##################
+# Writing to csv
+##################
+#Write to csv file - cancer_df: data that has been categorised
+write.csv(cancer_df, "cancer_cleaned.csv", row.names = FALSE)
+
+#write to csv file - cancer1 dataframe
+write.csv(cancer1, "cancer1.csv", row.names = FALSE)
+
+
+
+#View structure of new dataframes
+str(cancer1)  # 50000 obs. of  14 variables
+str(cancer_df)  # 50000 obs. of  14 variables
+
+
+
+#########################
+# VISUALISATION OF DATA
+#########################
+
+# Plotting graphs to visualize distribution of the new dataaset, cancer_df
+#1.age
+p1<- ggplot(cancer_df, aes(x=Age)) + geom_bar(fill = "lightblue") +labs(x = "Age") +theme_minimal(base_size= 10)
+#2.cancer.Gender
+p2<- ggplot(cancer_df, aes(x=cancer.Gender)) + geom_bar(fill = "#9EBDFB") +labs(x = "cancer.Gender") +theme_minimal(base_size= 10)
+#3.Genetic_Risk
+p3<- ggplot(cancer_df, aes(x=Genetic_Risk)) + geom_bar(fill = "#6F9E73") + labs(x = "Genetic_Risk") + theme_minimal(base_size = 10)
+#4.Air_Pollution
+p4<- ggplot(cancer_df, aes(x=Air_Pollution)) + geom_bar(fill = "#8A6AB1") + labs(x = "Air_Pollution") + theme_minimal(base_size = 10)
+#5. Smoking
+p5<- ggplot(cancer_df, aes(x=Smoking)) + geom_bar(fill = "#DECCF5") + labs(x = "Smoking") + theme_minimal(base_size = 10)
+#6. Obesity_Level
+p6<- ggplot(cancer_df, aes(x=Obesity_Level)) + geom_bar(fill = "#A78FC4") + labs(x = "Obesity_Level") + theme_minimal(base_size = 10)
+#7. Treatment_Cost
+p7<- ggplot(cancer_df, aes(x=Treatment_Cost)) + geom_bar(fill = "#89C98F") + labs(x = "Treatment_Cost" ) + theme_minimal(base_size = 10)
+#8.Severity_Score
+p8<- ggplot(cancer_df, aes(x=Severity_Score)) + geom_bar(fill = "#B7F4BD") + labs(x = "Severity_Score" ) + theme_minimal(base_size = 10)
+
+(p1 | p2) + plot_annotation(title = "Demographic and Baseline Characteristics") + theme(plot.title = element_text(hjust = 0.5))
+(p6 | p5 | p4) + plot_annotation(title = "Lifestyle and Environmental Factors") + theme(plot.title = element_text(hjust = 0.5))
+(p3 | p7 | p8) + plot_annotation(title = "Clinical and Cost Indicators") + theme(plot.title = element_text(hjust = 0.5))
+
+
+## Continuous Variables Disbribution
+# Filter the Gender column to keep only “Male” and “Female”.
+# Plot the three continuous variables (Target_Severity_Score， Treatment_Cost_USD, Survival_Years).
+#1. Target_Severity_Score - Violin Plot
+ggplot(cancer1, aes(x = "", y = Target_Severity_Score)) +
+  geom_violin(fill = "#6A5ACD", alpha = 0.75) +
+  geom_boxplot(width = 0.1, fill = "white", colour = "#2F2F2F") +
+  labs(title = "Distribution of Target Severity Score", x = NULL, y = "Severity Score") +
+  theme_minimal(base_size = 10) +
+  theme(axis.text.x = element_blank())
+#2. Treatment_Cost_USD - Box Plot
+p_cost <- ggplot(cancer1, aes(x = "", y = Treatment_Cost_USD)) +
+  geom_boxplot(fill = "#A8DADC", colour = "#2F2F2F", outlier.shape = NA) +
+  labs(title = "Treatment Cost (USD)", x = NULL, y = "") +
+  theme_minimal(base_size = 10) + theme(axis.text.x = element_blank())
+#3. Survival_Years - Box Plot
+p_surv <- ggplot(cancer1, aes(x = "", y = Survival_Years)) +
+  geom_boxplot(fill = "#FAD2E1", colour = "#2F2F2F", outlier.shape = NA) +
+  labs(title = "Survival Years", x = NULL, y = "") +
+  theme_minimal(base_size = 10) + theme(axis.text.x = element_blank())
+p_cost | p_surv
+
+
+### Correlation Matrix
+
+# Correlation plot of numerical variables
+# Subset - only include a subset of columns that are numerical
+cancer_num_cols<- subset(cancer1, select= c(1,4,5,6,7,8,11,12,13))   # the index of all numerical columns
+
+pearson_correlation_matrix <- cor(cancer_num_cols, method = "pearson")
+
+corrplot(pearson_correlation_matrix, method = "color", type = "lower", 
+         addCoef.col = "grey", title= "Correlation of the numerical columns",
+         tl.col = "black", tl.srt = 45, mar = c(1,1,1,1))
+
+
+#Boxplot of Cancer_Type vs. Treatment_Cost_USD | See which cancer types cost more.
+cr1 <- ggplot(cancer1, aes(fct_infreq(Cancer_Type), Treatment_Cost_USD)) +
+  geom_boxplot(fill = "#FAC3FE") +
+  labs(x = "Cancer Type", y = "Treatment Cost (USD)") +
+  theme_minimal(base_size = 15) + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#Boxplot of Cancer_Stage vs Treatment_Cost_USD | See if later-stage cancers are more severe.
+cr2 <- ggplot(cancer1, aes(fct_infreq(Cancer_Stage), Treatment_Cost_USD)) +
+  geom_boxplot(fill = "#A1F4CF") +
+  labs(x = "Cancer Stage", y = "Treatment Cost (USD)") +
+  theme_minimal(base_size = 15) + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+cr1 | cr2
+
+
+###########################################################
+# Check for class imbalance in our target variable, "Event"
+###########################################################
+Eventx <- cancer_df$Event
+Eventx.freq = table(Eventx)
+
+colors = c("red", "royalblue")
+barplot(Eventx.freq , col=colors)  #looks balanced
+
+#Checking exact numbers of each gender
+checkingIMB<- with(cancer_df,
+     {
+       print(table(Eventx))
+     })
+
+
+# checking percentage of  1 over 0 classes
+cat("Checking class imbalance by finding percentage of '1' to '0' records: ", checkingIMB[2]/checkingIMB[1] * 100)    #99.52115
+# Looks balanced
+# No need to do over or under sampling
+
+################################
+# Split data into train-test set
+################################
+#set seed to ensure reproducibility
+set.seed(123)
+
+#Data partitioning into training and testing using caret
+#cancer_df
+SplitIndex <- createDataPartition(cancer_df$Event, p = 0.7, list = FALSE) 
+train_data <- cancer_df[SplitIndex, ] 
+test_data <- cancer_df[-SplitIndex, ]
+
+#cancer1
+#Data partitioning into training and testing using caret
+SplitIndex1 <- createDataPartition(cancer1$Event, p = 0.7, list = FALSE) 
+train_data_1 <- cancer1[SplitIndex1, ] 
+test_data_1 <- cancer1[-SplitIndex1, ]

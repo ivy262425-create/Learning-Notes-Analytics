@@ -1,0 +1,69 @@
+# ---- Linear Regression Practice: Real Estate & Synthetic Data ----
+# 本代码展示了如何使用 R 语言进行线性回归分析。
+# 背景：假设有一个房地产数据集，目标是预测房价与便利店数量的关系。
+#
+# This script demonstrates linear regression analysis in R.
+# Context: Assume a real estate dataset where the goal is to predict housing prices
+# based on the number of nearby convenience stores.
+# Includes sample and synthetic data to practice regression modeling,
+# visualization, and prediction.
+
+library(ggplot2)
+
+# ---- Sample Data & Basic Regression ----
+x <- c(151, 174, 138, 186, 128, 136, 179, 163, 152, 131)
+y <- c(63, 81, 56, 91, 47, 57, 76, 72, 62, 48)
+women <- data.frame(x, y)
+
+relation <- lm(y ~ x)              # simple linear regression
+print(summary(relation))           # model summary
+plot(relation)                     # diagnostic plots
+
+# Polynomial regression (quadratic term)
+relation2 <- lm(y ~ x + I(x^2), data = women)
+plot(x, y)
+abline(relation)
+lines(x, fitted(relation2), col = "red")
+
+# ---- Visualization with ggplot2 ----
+# Example: visualize relationship between convenience stores and housing price
+ggplot(taiwan_real_estate, aes(n_convenience, price_twd_msq)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = 'lm', se = FALSE)
+
+# ---- Aggregation Examples ----
+aggregate(mpg ~ cyl, mtcars, FUN = length)
+aggregate(cbind(mpg, hp) ~ cyl + gear, data = mtcars, FUN = mean)
+
+# ---- Synthetic Data Simulation ----
+set.seed(123)
+x <- rnorm(100, mean = 50, sd = 10)              # independent variable
+y <- 5 + 2 * x + rnorm(100, mean = 0, sd = 5)    # dependent variable with noise
+
+plot(x, y, main = "Scatterplot: x vs y", xlab = "x", ylab = "y", pch = 19, col = "blue")
+model <- lm(y ~ x)
+summary(model)
+abline(model, col = "red", lwd = 2)
+
+# Residual diagnostics
+par(mfrow = c(2, 2))
+plot(model)
+
+# ---- Prediction & Confidence Interval ----
+new_data <- data.frame(x = c(40, 60, 80))
+predictions <- predict(model, newdata = new_data, interval = "confidence")
+print(predictions)
+
+plot(x, y, main = "Regression with Confidence Interval", xlab = "x", ylab = "y", pch = 19, col = "blue")
+abline(model, col = "red", lwd = 2)
+lines(new_data$x, predictions[, "lwr"], col = "green", lty = 2)  # lower CI
+lines(new_data$x, predictions[, "upr"], col = "green", lty = 2)  # upper CI
+
+# ---- Reflection ----
+# 本实践帮助我理解了线性回归的基本流程：数据准备、模型拟合、可视化与预测。
+# 不足之处在于真实数据的复杂性远高于示例，需要更深入的特征工程与模型优化。
+#
+# This practice illustrates the workflow of linear regression:
+# data preparation, model fitting, visualization, and prediction.
+# Limitations: real-world datasets are more complex, requiring deeper feature engineering
+# and systematic model optimization.

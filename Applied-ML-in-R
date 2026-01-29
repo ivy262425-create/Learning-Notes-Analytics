@@ -1,0 +1,123 @@
+# ---- Machine Learning Practice Notes ----
+# 本代码是我在学习《Machine Learning with R》过程中的整合实践笔记。
+# 内容涵盖了多种模型：线性回归、回归树、神经网络、支持向量机、关联规则。
+#
+# This script contains practice notes from *Machine Learning with R*.
+# It demonstrates multiple models: linear regression, regression trees,
+# neural networks, support vector machines, and association rules.
+
+# ---- Linear Regression: Insurance Dataset ----
+insurance <- read.csv("E:\\zxy.ntu\\Analytics Solftware\\insurance.csv")
+names(insurance)[7] <- 'expenses'
+hist(insurance$expenses)
+cor(insurance[c("age","bmi","children","expenses")])
+pairs(insurance[c("age","bmi","children","expenses")])
+library(psych)
+pairs.panels(insurance[c("age","bmi","children","expenses")])
+
+# Basic model
+ins_model <- lm(expenses ~ ., data = insurance)
+summary(ins_model)
+
+# Feature engineering: non-linear and interaction terms
+insurance$age2 <- insurance$age^2
+insurance$bmi30 <- ifelse(insurance$bmi >= 30, 1, 0)
+insmodel <- lm(expenses ~ bmi30 + smoker + bmi30:smoker, data = insurance)
+summary(insmodel)
+
+# Extended model
+ins_model2 <- lm(expenses ~ age+age2+children+bmi+bmi30+sex+bmi30*smoker+region, data = insurance)
+summary(ins_model2)
+
+# ---- Regression Trees: Wine Quality ----
+wine <- read.csv('E:\\zxy.ntu\\Analytics Solftware\\winequality-white.csv', sep = ';')
+wine_train <- wine[1:floor(nrow(wine)*0.75),]
+wine_test <- wine[ceiling(nrow(wine)*0.75):nrow(wine),]
+
+library(rpart)
+m.rpart <- rpart(quality ~ ., data = wine_train)
+library(rpart.plot)
+rpart.plot(m.rpart, digits = 4, fallen.leaves = TRUE, type = 3, extra = 101)
+
+# Evaluation
+p.rpart <- predict(m.rpart, wine_test)
+cor(p.rpart, wine_test$quality)
+MAE <- function(actual, predicted) mean(abs(actual - predicted))
+MAE(p.rpart, wine_test$quality)
+
+# Improvement: M5P model
+library(RWeka)
+m.m5p <- M5P(quality ~ ., data = wine_train)
+p.m5p <- predict(m.m5p, wine_test)
+cor(p.m5p, wine_test$quality)
+MAE(wine_test$quality, p.m5p)
+
+# ---- Neural Networks: Concrete Dataset ----
+concrete <- read.csv("E:\\zxy.ntu\\Analytics Solftware\\concrete.csv")
+normalize <- function(x) (x - min(x)) / (max(x) - min(x))
+concrete_norm <- as.data.frame(apply(concrete, 2, normalize))
+
+concrete_train <- concrete_norm[1:773,]
+concrete_test <- concrete_norm[774:1030,]
+
+library(neuralnet)
+concrete_model <- neuralnet(strength ~ cement+slag+ash+water+superplastic+coarseagg+fineagg+age,
+                            data = concrete_train)
+plot(concrete_model)
+
+# Evaluation
+model_results <- compute(concrete_model, concrete_test[1:8])
+pred_strength <- model_results$net.result
+cor(pred_strength, concrete_test$strength)
+
+# Improved model with hidden layer
+concrete_model2 <- neuralnet(strength ~ cement+slag+ash+water+superplastic+coarseagg+fineagg+age,
+                             data = concrete_train, hidden = 5)
+plot(concrete_model2)
+model_results2 <- compute(concrete_model2, concrete_test[1:8])
+pred_strength2 <- model_results2$net.result
+cor(concrete_test$strength, pred_strength2)
+
+# ---- Support Vector Machines: Letter Recognition ----
+letters <- read.csv("E:\\zxy.ntu\\Analytics Solftware\\letterdata.csv")
+letters$letter <- factor(letters$letter)
+letters_train <- letters[1:16000,]
+letters_test <- letters[16001:20000,]
+
+library(kernlab)
+letter_classifier <- ksvm(letter ~ ., data = letters_train, kernel = "vanilladot")
+letter_predictions <- predict(letter_classifier, letters_test)
+agreement <- letter_predictions == letters_test$letter
+prop.table(table(agreement))
+
+# Improved model with RBF kernel
+letter_class <- ksvm(letter ~ ., data = letters_train, kernel = 'rbfdot')
+letter_pred <- predict(letter_class, letters_test)
+agreement2 <- letter_pred == letters_test$letter
+prop.table(table(agreement2))
+
+# ---- Association Rules: Groceries ----
+library(arules)
+groceries <- read.transactions("E:\\zxy.ntu\\Analytics Solftware\\Analytics_2025\\Analytics_2025\\groceries.csv", sep = ',')
+summary(groceries)
+itemFrequencyPlot(groceries, topN = 20)
+
+# Apriori model
+groceryrules <- apriori(groceries, parameter = list(support = 0.006, confidence = 0.25, minlen = 2))
+inspect(sort(groceryrules, by = 'lift')[1:5])
+
+# Subset example
+berryrules <- subset(groceryrules, items %in% 'berries')
+inspect(berryrules)
+
+# Save rules
+write(groceryrules, file = "groceyrules.csv", sep = ',', quote = TRUE)
+
+# ---- Reflection ----
+# 本实践笔记涵盖了多种机器学习方法，从回归到分类再到关联规则。
+# 通过这些练习，我理解了不同模型的应用场景、优缺点和改进方式。
+# 不足之处在于参数调优和特征工程还比较初步，未来需要更系统化的探索。
+#
+# These practice notes cover multiple ML methods: regression, classification, and association rules.
+# Through these exercises, I learned the workflows, strengths, and limitations of different models.
+# Limitations include basic parameter tuning and feature engineering; future work will focus on deeper optimization.
